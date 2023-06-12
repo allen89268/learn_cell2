@@ -1,11 +1,9 @@
 import re
 import boto3  #Amazon Web Services (AWS) 的 Python SDK，用於與 AWS 服務交互。
 
-
 def generate_presigned_url(url):
     """
     Generate a presigned URL, if necessary (e.g., s3).
-
     :param url: An unsigned URL.
     :return: The presigned URL.
     """
@@ -18,5 +16,4 @@ def generate_presigned_url(url):
             "get_object", #操作名稱
             Params={"Bucket": bucket_name, "Key": filename.replace("+", " ")},
         )
-
     return url
