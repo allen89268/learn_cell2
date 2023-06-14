@@ -5,13 +5,13 @@ run an analysis worker to get pipeline metadata and run a pipeline on
 an image set.
 """
 import json
-import logging
-import threading
-import uuid
-from io import StringIO
-
-import numpy
-import zmq
+import logging    #用於記錄日誌信息。
+import threading  #用於實現多線程。
+import uuid       #用於生成唯一標識符
+from io import StringIO  #用於在內存中讀寫字符串。
+import numpy   #用於進行科學計算。
+import zmq     #綁定ZeroMQ，用於多語言/平台/容器之間進行通訊實現消息傳遞
+#從 cellprofiler_core 中導入
 from cellprofiler_core.constants.measurement import (
     GROUP_NUMBER,
     GROUP_INDEX,
@@ -53,10 +53,10 @@ PIPELINE_EXCEPTION_1 = "pipeline-exception-1"
 CLEAN_PIPELINE_REQ_1 = "clean-pipeline-request-1"
 CLEAN_PIPELINE_REPLY_1 = "clean-pipeline-reply-1"
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)   #創建一個日誌記錄器
 
 
-class KnimeBridgeServer(threading.Thread):
+class KnimeBridgeServer(threading.Thread):  #允許單個客戶端運行分析器，以獲取數據並在圖像集上運行
     """The server maintains the port and hands off the requests to workers
 
     example of use:
@@ -73,48 +73,48 @@ class KnimeBridgeServer(threading.Thread):
         notify_socket.send("Stop")
     """
 
-    def __init__(self, context, address, notify_address, notify_stop, **kwargs):
-        super(KnimeBridgeServer, self).__init__(**kwargs)
-        self.setDaemon(True)
-        self.setName("Knime bridge server")
+    def __init__(self, context, address, notify_address, notify_stop, **kwargs):  #設置thread的性質，ZMQ上下文對象及其產生的位址(Publish-Subscribe模式)、服務器地址、通知地址、通知停止消息、其他關鍵字參數(請求)
+        super(KnimeBridgeServer, self).__init__(**kwargs) 
+        self.setDaemon(True)  #設置為守護程序(較不重要的)，主執行緒執行完畢後會將子執行緒回收掉，不需要等待其完成
+        self.setName("Knime bridge server")  #設置線程名稱
         self.address = address
         self.context = context
         self.notify_addr = notify_address
         self.stop_msg = notify_stop
-        self.dispatch = {
+        self.dispatch = {   #分發客戶端請求，消息:處理方法
             CONNECT_REQ_1: self.connect,
             CLEAN_PIPELINE_REQ_1: self.clean_pipeline,
             PIPELINE_INFO_REQ_1: self.pipeline_info,
             RUN_REQ_1: self.run_request,
             RUN_GROUP_REQ_1: self.run_group_request,
         }
-        self.start_addr = "inproc://" + uuid.uuid4().hex
-        self.start_socket = context.socket(zmq.PAIR)
-        self.start_socket.bind(self.start_addr)
+        self.start_addr = "inproc://" + uuid.uuid4().hex  #使用 uuid.uuid4 函數生成一個唯一標識符，.hex轉換為十六進制字符串。
+        self.start_socket = context.socket(zmq.PAIR)  #ZMQ套接字類型為 zmq.PAIR
+        self.start_socket.bind(self.start_addr)  #綁定指定地址到套接字self.start_socket
 
-    def __enter__(self):
+    def __enter__(self):  #進入後啟動服務器
         if self.address is not None:
-            self.start()
+            self.start()  
 
-    def __exit__(self, exc_type, value, tb):
+    def __exit__(self, exc_type, value, tb):  #離開後停止服務器，參數為異常類型、異常值和異常追蹤信息
         if self.address is not None:
-            self.join()
+            self.join()  
 
-    def start(self):
-        super(KnimeBridgeServer, self).start()
-        self.start_socket.recv()
-        self.start_socket.close()
+    def start(self):  #啟動後接收消息再關閉
+        super(KnimeBridgeServer, self).start()  #啟動服務器線程
+        self.start_socket.recv()  #以套接字位址為對象接收消息
+        self.start_socket.close()  #關閉套接字位址
 
-    def run(self):
+    def run(self):  #運行時，創建ZMQ輪詢器來註冊ZMQ地址
         try:
-            LOGGER.info("Binding Knime bridge server to %s" % self.address)
-            self.socket = self.context.socket(zmq.REP)
-            self.socket.bind(self.address)
-            poller = zmq.Poller()
-            poller.register(self.socket, flags=zmq.POLLIN)
-            if self.notify_addr is not None:
-                self.notify_socket = self.context.socket(zmq.SUB)
-                self.notify_socket.setsockopt(zmq.SUBSCRIBE, "")
+            LOGGER.info("Binding Knime bridge server to %s" % self.address)  #
+            self.socket = self.context.socket(zmq.REP)  #ZMQ套接字類型為 zmq.REP
+            self.socket.bind(self.address)  #綁定指定地址到套接字self.socket
+            poller = zmq.Poller()  #初始化並創建一個 ZMQ 輪詢器對象
+            poller.register(self.socket, flags=zmq.POLLIN)  #輪詢器的 register 方法註冊套接字位址，事件類型為 zmq.POLLIN，表示可以在recv（）端刷新recv端口，使其可以接收至少一個訊息
+            if self.notify_addr is not None:  #ZMQ client端
+                self.notify_socket = self.context.socket(zmq.SUB)  #套接字類型為zmq.SUB，用於訂閱消息
+                self.notify_socket.setsockopt(zmq.SUBSCRIBE, "")  #zmq.SUBSCRIBE创建一个消息过滤标志，订阅以""为前缀的消息
                 self.notify_socket.connect(self.notify_addr)
                 poller.register(self.notify_socket, flags=zmq.POLLIN)
             else:
